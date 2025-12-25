@@ -240,6 +240,12 @@ class ConfigManager:
             IDE 配置对象
         """
         config_file = Path(path)
+
+        # 如果是相对路径，相对于主配置文件所在目录
+        if not config_file.is_absolute() and self.config_path:
+            main_config_dir = Path(self.config_path).parent
+            config_file = main_config_dir / config_file
+
         if not config_file.exists():
             raise FileNotFoundError(f"IDE 配置文件不存在: {path}")
 

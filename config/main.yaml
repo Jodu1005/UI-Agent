@@ -7,7 +7,7 @@ system:
 
 ide:
   name: pycharm
-  config_path: config/operations/pycharm.yaml
+  config_path: operations/pycharm.yaml
 
 api:
   zhipuai:
