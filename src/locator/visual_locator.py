@@ -72,6 +72,7 @@ class VisualLocator:
         api_key: str,
         model: str = "glm-4v-flash",
         screenshot_capture: ScreenshotCapture | None = None,
+        vision_enabled: bool = True,
     ) -> None:
         """初始化视觉定位器。
 
@@ -79,11 +80,12 @@ class VisualLocator:
             api_key: 智谱 AI API Key
             model: 使用的模型名称
             screenshot_capture: 截图捕获器（可选）
-            coordinate_offset: 坐标偏移量 [x_offset, y_offset]（可选）
+            vision_enabled: 是否启用大模型视觉识别（默认 True）
         """
         self.client = ZhipuAI(api_key=api_key)
         self.model = model
         self.screenshot_capture = screenshot_capture
+        self._vision_enabled = vision_enabled
 
         # 定位结果缓存
         self._cache: dict[str, list[UIElement]] = {}
@@ -125,6 +127,14 @@ class VisualLocator:
 
         if screenshot is None:
             return []
+
+        # 如果视觉识别被禁用，直接使用 OCR
+        if not self._vision_enabled:
+            print("[定位] 视觉识别已禁用，使用 OCR 定位")
+            if target_filter:
+                return self._locate_with_ocr(screenshot, target_filter)
+            # 如果没有目标过滤，尝试全图 OCR 获取所有文本
+            return self._locate_with_ocr(screenshot, "")
 
         # 如果有目标过滤且支持 OCR，使用混合定位方法
         if use_ocr_fallback and target_filter and EASYOCR_AVAILABLE:

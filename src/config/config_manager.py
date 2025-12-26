@@ -203,6 +203,7 @@ class ConfigManager:
             IDEConfig,
             SafetyConfig,
             SystemConfig,
+            VisionConfig,
         )
 
         system_data = data.get("system", {})
@@ -210,6 +211,7 @@ class ConfigManager:
         api_data = data.get("api", {})
         automation_data = data.get("automation", {})
         safety_data = data.get("safety", {})
+        vision_data = data.get("vision", {})
 
         # 加载 IDE 操作配置
         ide_config_path = ide_data.get("config_path")
@@ -228,6 +230,7 @@ class ConfigManager:
             ),
             automation=AutomationConfig(**automation_data),
             safety=SafetyConfig(**safety_data),
+            vision=VisionConfig(**vision_data),
         )
 
     def load_ide_config(self, path: str) -> IDEConfig:

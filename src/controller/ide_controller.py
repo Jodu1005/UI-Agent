@@ -42,6 +42,7 @@ class IDEController:
             api_key=api_key,
             model=self.config.api.model,
             screenshot_capture=self.screenshot,
+            vision_enabled=self.config.vision.enabled,
         )
 
         # 设置坐标偏移量（如果有配置）

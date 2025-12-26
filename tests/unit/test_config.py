@@ -13,6 +13,7 @@ from src.config.schema import (
     APIConfig,
     AutomationConfig,
     SafetyConfig,
+    VisionConfig,
 )
 
 
@@ -105,6 +106,16 @@ class TestConfigSchema:
         assert config.require_confirmation is True
         assert config.enable_undo is True
         assert config.dangerous_operations is None
+
+    def test_vision_config_defaults(self):
+        """测试视觉识别配置默认值。"""
+        config = VisionConfig()
+        assert config.enabled is True
+
+    def test_vision_config_disabled(self):
+        """测试禁用视觉识别配置。"""
+        config = VisionConfig(enabled=False)
+        assert config.enabled is False
 
 
 @pytest.mark.unit

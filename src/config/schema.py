@@ -109,6 +109,13 @@ class SafetyConfig:
 
 
 @dataclass
+class VisionConfig:
+    """视觉识别配置。"""
+
+    enabled: bool = True
+
+
+@dataclass
 class MainConfig:
     """主配置文件。"""
 
@@ -117,3 +124,4 @@ class MainConfig:
     api: APIConfig
     automation: AutomationConfig
     safety: SafetyConfig
+    vision: VisionConfig = None

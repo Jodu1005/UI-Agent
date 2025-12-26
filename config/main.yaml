@@ -25,6 +25,12 @@ automation:
   # 例如：如果实际位置比视觉定位的位置偏右 36 像素、偏下 46 像素，则设置为 [36, 46]
   coordinate_offset: [36, 46]
 
+vision:
+  # 是否启用基于大模型的视觉识别
+  # - true: 使用智谱 AI 视觉模型进行 UI 定位（默认）
+  # - false: 仅使用 OCR 进行定位，不调用大模型 API
+  enabled: false
+
 safety:
   dangerous_operations:
     - delete_file
@@ -32,3 +38,4 @@ safety:
     - git_reset
   require_confirmation: true
   enable_undo: true
+
