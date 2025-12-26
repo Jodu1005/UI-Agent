@@ -144,6 +144,66 @@ class CommandParser:
         if search_match and "search" in operation.name.lower():
             parameters["search_text"] = search_match.group(1) or search_match.group(2)
 
+        # 提取输入框相关参数
+        if operation.intent == "input" or "input" in operation.name.lower():
+            # 提取上下文描述和位置提示
+            # 格式: "在{context_text}{position_hint}的输入框中输入{input_text}并回车"
+            # 例如: "在本地下方的输入框中输入test并回车"
+            context_pattern = r'在\s*([^\s]+?(?:\s*[上下左右]方)?)\s*的输入框中?输入'
+            context_match = re.search(context_pattern, text)
+            if context_match:
+                context_text = context_match.group(1)
+                # 检查是否包含位置提示
+                position_hints = ["上方", "下方", "左侧", "右边", "右侧"]
+                for hint in position_hints:
+                    if hint in context_text:
+                        parameters["position_hint"] = hint
+                        # 移除位置提示，保留上下文文本
+                        parameters["context_text"] = context_text.replace(hint, "").strip()
+                        break
+                else:
+                    # 没有位置提示，整个就是上下文
+                    parameters["context_text"] = context_text
+
+            # 提取要输入的文本
+            # 优先匹配引号包裹的内容
+            quoted_pattern = r'输入\s*["\']([^"\']+)["\']'
+            quoted_match = re.search(quoted_pattern, text)
+            if quoted_match:
+                parameters["input_text"] = quoted_match.group(1)
+            else:
+                # 匹配: "输入xxx并回车" 或 "输入xxx" (支持包含空格的命令)
+                # 策略：找到最后一个"输入"关键字后的内容，直到"并回车"或结尾
+                # 排除上下文描述部分（包含"输入框"的内容）
+                input_text = None
+                # 找到所有"输入"的位置
+                for match in re.finditer(r'输入', text):
+                    pos = match.end()
+                    # 检查是否在"输入框中"的上下文内（跳过这种）
+                    if pos < len(text) and text[pos:pos+2] == "框":
+                        continue
+                    # 提取从"输入"后到结束或"并回车"的内容
+                    remaining = text[pos:]
+                    # 移除"并回车"后的内容
+                    if "并回车" in remaining:
+                        remaining = remaining.split("并回车")[0]
+                    # 清理并提取
+                    extracted = remaining.strip()
+                    # 排除可能的介词
+                    extracted = re.sub(r'^[\s的且和并]+', '', extracted)
+                    if extracted:
+                        input_text = extracted
+
+                if input_text:
+                    # 清理可能的残留字符
+                    input_text = re.sub(r'["\']', '', input_text).strip()
+                    if input_text:
+                        parameters["input_text"] = input_text
+
+            # 检查是否需要回车
+            if "回车" in text or "并回车" in text:
+                parameters["submit_action"] = "enter"
+
         return parameters
 
     def _parse_with_llm(self, text: str, context: dict[str, Any]) -> ParsedCommand:

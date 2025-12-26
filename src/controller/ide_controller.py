@@ -146,8 +146,14 @@ class IDEController:
             # 替换提示词中的参数
             prompt = self._format_prompt(op_config.visual_prompt, parameters)
 
-            # 提取目标文件名用于过滤
-            target_filter = parameters.get("filename", None)
+            # 提取目标过滤参数（根据操作类型选择合适的参数）
+            # - file_operation: 使用 filename
+            # - input: 使用 context_text（用于定位参考元素）
+            # - 其他: 使用 filename 或 context_text
+            if op_config.intent == "input":
+                target_filter = parameters.get("context_text", None)
+            else:
+                target_filter = parameters.get("filename", None)
 
             elements = self.locator.locate(prompt, screenshot, target_filter=target_filter)
 
@@ -169,6 +175,13 @@ class IDEController:
             # 3. 转换操作配置为 Action 对象
             actions = []
             for action_cfg in op_config.actions:
+                # 检查条件执行：如果操作标记为 conditional 且相关参数不存在，则跳过
+                if action_cfg.parameters and action_cfg.parameters.get("conditional"):
+                    # 检查是否满足条件（例如 submit_action 存在）
+                    conditional_param = action_cfg.parameters.get("conditional_param", "submit_action")
+                    if conditional_param not in parameters or not parameters[conditional_param]:
+                        continue  # 跳过此操作
+
                 # 安全地转换操作类型
                 try:
                     action_type = ActionType(action_cfg.type)

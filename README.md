@@ -40,6 +40,7 @@ export ZHIPUAI_API_KEY="your-api-key-here"
 ### 使用
 
 ```bash
+
 # 启动交互式 CLI
 python -m src.main
 

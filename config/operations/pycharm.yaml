@@ -339,3 +339,47 @@ operations:
       - type: shortcut
         keys: ["ctrl", "alt", "o"]
         timeout: 2.0
+
+  # 输入操作
+  - name: input_text
+    aliases: [输入, 输入文本, 在输入框中输入]
+    intent: input
+    description: 在指定输入框中输入文本
+
+    visual_prompt: |
+      在截图中精确定位输入框：
+      1. 查找包含文本 "{context_text}" 的元素
+      2. 在该元素的 {position_hint} 找到输入框
+      3. 如果没有指定位置提示，直接查找与描述匹配的输入框
+      4. 输入框应具有明显的输入区域特征（空白区域、光标等）
+
+      定位要求：
+      - 仔细查找包含精确文本 "{context_text}" 的参考元素
+      - 根据位置关系（{position_hint}）在其附近查找输入框
+      - 边界框必须紧密包裹该输入框的实际可见区域
+      - 请多次确认坐标的准确性
+
+      返回格式：
+      - element_type: text_field（输入框类型）
+      - description: 元素描述（禁止使用双引号）
+      - bbox: 精确的边界框坐标 [x1, y1, x2, y2]
+      - confidence: 定位置信度（0-1）
+
+    actions:
+      - type: click
+        target: "0"  # 使用视觉定位返回的第一个元素（目标输入框）
+        timeout: 0.5
+
+      - type: type
+        text: "{input_text}"
+        delay: 0.1
+
+      # 仅当指定了 submit_action 为 enter 时才执行
+      - type: shortcut
+        keys: ["enter"]
+        timeout: 0.5
+        parameters:
+          conditional: true
+          conditional_param: submit_action  # 检查此参数是否存在
+
+    requires_confirmation: false

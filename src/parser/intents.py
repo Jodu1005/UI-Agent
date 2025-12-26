@@ -24,6 +24,9 @@ class IntentType(Enum):
     # 搜索操作
     SEARCH = "search"
 
+    # 输入操作
+    INPUT = "input"
+
     # 未知意图
     UNKNOWN = "unknown"
 
@@ -92,5 +95,13 @@ INTENT_KEYWORDS = {
         "search",
         "find",
         "replace",
+    ],
+    IntentType.INPUT: [
+        "输入",
+        "输入文本",
+        "在输入框中输入",
+        "input",
+        "type",
+        "enter",
     ],
 }

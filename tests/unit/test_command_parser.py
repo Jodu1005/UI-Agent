@@ -134,6 +134,29 @@ class TestCommandParser:
         )
         assert cmd.validate() is False
 
+    def test_extract_input_text_with_spaces(self, parser):
+        """测试提取带空格的输入文本（如 python --version）。"""
+        mock_op = MagicMock()
+        mock_op.name = "input_text"
+        mock_op.intent = "input"
+        mock_op.aliases = ["输入", "输入文本", "在输入框中输入"]
+
+        result = parser._extract_parameters("在终端下方的输入框中输入 python --version", mock_op)
+        assert result.get("input_text") == "python --version"
+
+    def test_extract_input_text_with_position_hint(self, parser):
+        """测试提取带位置提示的输入文本。"""
+        mock_op = MagicMock()
+        mock_op.name = "input_text"
+        mock_op.intent = "input"
+        mock_op.aliases = ["输入", "输入文本", "在输入框中输入"]
+
+        result = parser._extract_parameters("在本地下方的输入框中输入test并回车", mock_op)
+        assert result.get("input_text") == "test"
+        assert result.get("context_text") == "本地"
+        assert result.get("position_hint") == "下方"
+        assert result.get("submit_action") == "enter"
+
 
 @pytest.mark.unit
 class TestCoordinateCalibrator:

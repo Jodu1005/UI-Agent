@@ -128,7 +128,7 @@ class VisualLocator:
 
         # 如果有目标过滤且支持 OCR，使用混合定位方法
         if use_ocr_fallback and target_filter and EASYOCR_AVAILABLE:
-            print(f"[定位] 使用混合定位方法 (GLM + OCR)")
+            print(f"[定位] 使用混合定位方法 (GLM + OCR),关键字为{target_filter}")
             elements = self._locate_hybrid(screenshot, prompt, target_filter)
         else:
             # 检查缓存
