@@ -3,17 +3,17 @@
 import time
 from typing import Any
 
-from src.automation.executor import AutomationExecutor
 from src.automation.actions import Action, ActionType
+from src.automation.executor import AutomationExecutor
 from src.config.config_manager import ConfigManager
-from src.config.schema import ActionConfig as SchemaActionConfig
 from src.config.schema import MainConfig, OperationConfig
 from src.locator.screenshot import ScreenshotCapture
+from src.locator.template_matcher import TemplateMatcher
 from src.locator.visual_locator import VisualLocator
-from src.models.command import ParsedCommand
-from src.models.element import UIElement
 from src.models.result import ExecutionResult, ExecutionStatus
 from src.parser.command_parser import CommandParser
+from src.window.exceptions import WindowActivationError, WindowNotFoundError
+from src.window.window_manager import WindowManager
 
 
 class IDEController:
@@ -45,8 +45,23 @@ class IDEController:
             vision_enabled=self.config.vision.enabled,
         )
 
+        # 初始化模板匹配器
+        if self.config.template_matching:
+            self.template_matcher = TemplateMatcher(
+                template_dir=self.config.template_matching.template_dir,
+                default_confidence=self.config.template_matching.default_confidence,
+                method=self.config.template_matching.method,
+                enable_multiscale=self.config.template_matching.enable_multiscale,
+                scales=self.config.template_matching.scales,
+            )
+        else:
+            self.template_matcher = None
+
         # 设置坐标偏移量（如果有配置）
-        if hasattr(self.config.automation, 'coordinate_offset') and self.config.automation.coordinate_offset:
+        if (
+            hasattr(self.config.automation, "coordinate_offset")
+            and self.config.automation.coordinate_offset
+        ):
             self.locator.set_coordinate_offset(self.config.automation.coordinate_offset)
             print(f"[初始化] 坐标偏移量: {self.config.automation.coordinate_offset}")
 
@@ -55,6 +70,9 @@ class IDEController:
             max_retries=self.config.automation.max_retries,
             action_delay=self.config.automation.action_delay,
         )
+
+        # 初始化窗口管理器
+        self._window_manager = WindowManager()
 
         # 上下文
         self._context: dict[str, Any] = {
@@ -65,11 +83,12 @@ class IDEController:
         # 运行状态
         self._running = True
 
-    def execute_command(self, command: str) -> ExecutionResult:
+    def execute_command(self, command: str, template_name: str | None = None) -> ExecutionResult:
         """执行自然语言命令。
 
         Args:
             command: 自然语言命令
+            template_name: 模板图片文件名（可选）
 
         Returns:
             执行结果
@@ -103,8 +122,52 @@ class IDEController:
                         message="操作已取消",
                     )
 
-            # 4. 执行操作
-            result = self._execute_operation(op_config, parsed.parameters)
+            # 4. 检查是否是窗口管理操作（不需要定位元素）
+            if op_config.intent == "window_management":
+                if op_config.name == "activate_window":
+                    # 尝试从命令中提取窗口标题
+                    # 如果命令包含 "切换到 XXX" 或 "激活 XXX"，则提取 XXX 作为窗口标题
+                    window_title = "PyCharm"  # 默认值
+
+                    # 尝试从命令中提取窗口标题
+                    # 命令格式: "切换到微信窗口" -> 提取 "微信"
+                    # 命令格式: "激活 WeChat" -> 提取 "WeChat"
+                    # 命令格式: "切换到微信" -> 提取 "微信"
+                    import re
+                    # 匹配 "切换到xxx窗口" 或 "激活xxx" 或 "切换到xxx"
+                    # 注意: 正则表达式顺序很重要，更具体的模式应该放在前面
+                    patterns = [
+                        r"切换到\s*(.+?)\s*窗口",  # "切换到 xxx 窗口"
+                        r"切换到\s*(.+)",  # "切换到xxx" (支持无空格)
+                        r"激活\s*(.+?)(?:\s|$)",  # "激活xxx" (支持无空格)
+                        r"切换\s*(.+)",  # "切换xxx"
+                    ]
+                    for pattern in patterns:
+                        match = re.search(pattern, command)
+                        if match:
+                            window_title = match.group(1).strip()
+                            break
+
+                    # 检查是否是已知的应用，优先使用进程名匹配
+                    # 先去除窗口标题两端的空格
+                    window_title = window_title.strip()
+
+                    # 清理常见的后缀词
+                    suffixes_to_remove = ["浏览器", "窗口", "软件", "程序", "应用"]
+                    for suffix in suffixes_to_remove:
+                        if window_title.endswith(suffix):
+                            window_title = window_title[: -len(suffix)].strip()
+                            break
+
+                    result = self._activate_by_application_name(window_title)
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    result.duration_ms = duration_ms
+                    return result
+
+            # 5. 执行操作
+            result = self._execute_operation(
+                op_config, parsed.parameters, template_name=template_name
+            )
 
             duration_ms = int((time.time() - start_time) * 1000)
             result.duration_ms = duration_ms
@@ -129,12 +192,14 @@ class IDEController:
         self,
         op_config: OperationConfig,
         parameters: dict[str, Any],
+        template_name: str | None = None,
     ) -> ExecutionResult:
         """执行操作。
 
         Args:
             op_config: 操作配置
             parameters: 命令参数
+            template_name: 命令行指定的模板名称（优先级高于配置）
 
         Returns:
             执行结果
@@ -144,27 +209,55 @@ class IDEController:
             screenshot = self.screenshot.capture_fullscreen()
 
             # 2. 定位 UI 元素
-            # 替换提示词中的参数
-            prompt = self._format_prompt(op_config.visual_prompt, parameters)
+            elements = []
 
-            # 提取目标过滤参数（根据操作类型选择合适的参数）
-            # - file_operation: 使用 filename
-            # - input: 使用 context_text（用于定位参考元素）
-            # - 其他: 使用 filename 或 context_text
-            if op_config.intent == "input":
-                target_filter = parameters.get("context_text", None)
-            else:
-                target_filter = parameters.get("filename", None)
+            # 优先级 1: 模板匹配（如果配置了 template 或命令行指定了模板）
+            template_to_use = template_name or op_config.template
+            if template_to_use and self.template_matcher:
+                print(f"[定位] 使用模板匹配: {template_to_use}")
+                # 使用操作配置中的置信度，或使用默认值
+                threshold = op_config.confidence or self.template_matcher.default_confidence
+                elements = self.template_matcher.match(
+                    screenshot,
+                    template_to_use,
+                    threshold=threshold,
+                )
+                if elements:
+                    print(f"[定位] 模板匹配成功，找到 {len(elements)} 个结果")
+                    for i, elem in enumerate(elements):
+                        center_x, center_y = elem.center
+                        print(f"       元素 {i}: {elem.description}")
+                        print(
+                            f"       bbox={elem.bbox}, 中心=({center_x}, {center_y}), 置信度={elem.confidence}"
+                        )
+                else:
+                    print("[定位] 模板匹配未找到结果")
 
-            elements = self.locator.locate(prompt, screenshot, target_filter=target_filter)
+            # 优先级 2: 视觉识别/OCR（如果没有配置模板或模板匹配失败）
+            if not elements:
+                # 替换提示词中的参数
+                prompt = self._format_prompt(op_config.visual_prompt, parameters)
 
-            # 显示定位结果（调试用）
-            if elements and target_filter:
-                for i, elem in enumerate(elements):
-                    center_x, center_y = elem.center
-                    print(f"[定位] 元素 {i}: {elem.description}")
-                    print(f"       bbox={elem.bbox}, 中心=({center_x}, {center_y}), 置信度={elem.confidence}")
-                print(f"[定位] 选择最匹配 '{target_filter}' 的元素")
+                # 提取目标过滤参数（根据操作类型选择合适的参数）
+                # - file_operation: 使用 filename
+                # - input: 使用 context_text（用于定位参考元素）
+                # - 其他: 使用 filename 或 context_text
+                if op_config.intent == "input":
+                    target_filter = parameters.get("context_text", None)
+                else:
+                    target_filter = parameters.get("filename", None)
+
+                elements = self.locator.locate(prompt, screenshot, target_filter=target_filter)
+
+                # 显示定位结果（调试用）
+                if elements and target_filter:
+                    for i, elem in enumerate(elements):
+                        center_x, center_y = elem.center
+                        print(f"[定位] 元素 {i}: {elem.description}")
+                        print(
+                            f"       bbox={elem.bbox}, 中心=({center_x}, {center_y}), 置信度={elem.confidence}"
+                        )
+                    print(f"[定位] 选择最匹配 '{target_filter}' 的元素")
 
             if not elements:
                 return ExecutionResult(
@@ -179,7 +272,9 @@ class IDEController:
                 # 检查条件执行：如果操作标记为 conditional 且相关参数不存在，则跳过
                 if action_cfg.parameters and action_cfg.parameters.get("conditional"):
                     # 检查是否满足条件（例如 submit_action 存在）
-                    conditional_param = action_cfg.parameters.get("conditional_param", "submit_action")
+                    conditional_param = action_cfg.parameters.get(
+                        "conditional_param", "submit_action"
+                    )
                     if conditional_param not in parameters or not parameters[conditional_param]:
                         continue  # 跳过此操作
 
@@ -329,3 +424,230 @@ class IDEController:
     def is_running(self) -> bool:
         """是否正在运行。"""
         return self._running
+
+    def activate_window(self, title: str) -> ExecutionResult:
+        """激活指定窗口。
+
+        Args:
+            title: 窗口标题
+
+        Returns:
+            执行结果
+        """
+        try:
+            success = self._window_manager.activate_window(title)
+            if success:
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"窗口已激活: {title}",
+                )
+            else:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    message=f"窗口激活失败: {title}",
+                )
+        except WindowNotFoundError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="窗口未找到",
+                error=str(e),
+            )
+        except WindowActivationError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="窗口激活失败",
+                error=str(e),
+            )
+
+    def activate_pycharm(self) -> ExecutionResult:
+        """激活 PyCharm 窗口。"""
+        # PyCharm 的进程名通常是 pycharm64.exe
+        # 这是最可靠的方式来识别 PyCharm
+        try:
+            success = self._window_manager.activate_by_process("pycharm64.exe")
+            return ExecutionResult(
+                status=ExecutionStatus.SUCCESS,
+                message="已激活 PyCharm 窗口",
+            )
+        except WindowNotFoundError:
+            # 如果按进程名找不到，回退到窗口标题匹配
+            return self._activate_by_fallback_patterns()
+        except WindowActivationError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="窗口激活失败",
+                error=str(e),
+            )
+
+    def _activate_by_fallback_patterns(self) -> ExecutionResult:
+        """使用窗口标题模式作为回退方案。
+
+        Returns:
+            执行结果
+        """
+        try:
+            # 获取所有窗口
+            all_windows = self._window_manager.list_windows()
+
+            # 策略 1: 查找包含 .py 的窗口（PyCharm 编辑器窗口）
+            for title in all_windows:
+                if ".py" in title and "–" in title:
+                    window = self._window_manager.find_window(title)
+                    if window:
+                        return self._activate_window_object(window)
+
+            # 策略 2: 查找包含 JetBrains 的窗口
+            for title in all_windows:
+                if "JetBrains" in title:
+                    window = self._window_manager.find_window(title)
+                    if window:
+                        return self._activate_window_object(window)
+
+            # 策略 3: 查找包含 PyCharm 的窗口
+            for title in all_windows:
+                if "PyCharm" in title:
+                    window = self._window_manager.find_window(title)
+                    if window:
+                        return self._activate_window_object(window)
+
+            # 如果都没找到，返回错误
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="未找到 PyCharm 窗口",
+                error="请确保 PyCharm 正在运行并有打开的项目",
+            )
+
+        except Exception as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="查找窗口失败",
+                error=str(e),
+            )
+
+    def activate_by_process(self, process_name: str) -> ExecutionResult:
+        """通过进程名激活窗口。
+
+        Args:
+            process_name: 进程名称（如 "WeChatApp.exe", "pycharm64.exe"）
+
+        Returns:
+            执行结果
+        """
+        try:
+            success = self._window_manager.activate_by_process(process_name)
+            return ExecutionResult(
+                status=ExecutionStatus.SUCCESS,
+                message=f"已激活进程窗口: {process_name}",
+            )
+        except WindowNotFoundError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="进程窗口未找到",
+                error=str(e),
+            )
+        except WindowActivationError as e:
+            error_msg = str(e)
+            # 检查是否是权限问题（Windows Error Code 5）
+            if "Error code from Windows: 5" in error_msg or "拒绝访问" in error_msg:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    message="权限不足，无法激活窗口",
+                    error=f"目标应用可能以管理员权限运行。请以管理员身份运行此脚本，或关闭目标应用后以普通用户身份重新打开。",
+                )
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="窗口激活失败",
+                error=str(e),
+            )
+
+    def _activate_window_object(self, window) -> ExecutionResult:
+        """激活窗口对象。
+
+        Args:
+            window: pygetwindow 窗口对象
+
+        Returns:
+            执行结果
+        """
+        try:
+            if window.isMinimized:
+                window.restore()
+            window.activate()
+
+            # 尝试使用 Win32 API 强制激活
+            try:
+                import win32gui
+
+                hwnd = win32gui.FindWindow(None, window.title)
+                if hwnd:
+                    win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+
+            return ExecutionResult(
+                status=ExecutionStatus.SUCCESS,
+                message=f"窗口已激活: {window.title}",
+            )
+        except Exception as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="窗口激活失败",
+                error=str(e),
+            )
+
+    def _activate_by_application_name(self, app_name: str) -> ExecutionResult:
+        """根据应用名称智能选择激活方式。
+
+        Args:
+            app_name: 应用名称（如 "PyCharm", "微信", "Chrome"）
+
+        Returns:
+            执行结果
+        """
+        # 应用名称到进程名的映射
+        app_process_map = {
+            "PyCharm": "pycharm64.exe",
+            "pycharm": "pycharm64.exe",
+            "IDEA": "idea64.exe",
+            "WebStorm": "webstorm64.exe",
+            "微信": "WeChatApp.exe",
+            "WeChat": "WeChatApp.exe",
+            "wechat": "WeChatApp.exe",
+            "Chrome": "chrome.exe",
+            "chrome": "chrome.exe",
+            "谷歌": "chrome.exe",
+            "谷歌浏览器": "chrome.exe",
+            "浏览器": "chrome.exe",
+            "Edge": "msedge.exe",
+            "edge": "msedge.exe",
+            "微软": "msedge.exe",
+            "Firefox": "firefox.exe",
+            "firefox": "firefox.exe",
+            "火狐": "firefox.exe",
+            "火狐浏览器": "firefox.exe",
+            "VSCode": "Code.exe",
+            "vscode": "Code.exe",
+            "Code": "Code.exe",
+            "代码": "Code.exe",
+        }
+
+        # 检查是否有映射的进程名
+        process_name = app_process_map.get(app_name)
+        if process_name:
+            print(f"[调试] 使用进程名激活: {app_name} -> {process_name}")
+            try:
+                return self.activate_by_process(process_name)
+            except Exception as e:
+                print(f"[调试] 进程名激活失败，回退到窗口标题: {e}")
+
+        # 回退到窗口标题匹配
+        print(f"[调试] 使用窗口标题激活: {app_name}")
+        try:
+            return self.activate_window(app_name)
+        except Exception as e:
+            # 返回友好的错误信息
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message=f"未找到 '{app_name}' 窗口",
+                error="请确保应用正在运行",
+            )

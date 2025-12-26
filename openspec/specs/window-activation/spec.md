@@ -1,0 +1,167 @@
+# window-activation Specification
+
+## Purpose
+TBD - created by archiving change activate-window. Update Purpose after archive.
+## 需求
+### 需求：窗口查找
+
+系统**必须**能够根据窗口标题查找目标窗口。
+
+#### 场景：通过完整标题查找窗口
+
+**Given** 系统中存在标题为 "PyCharm - UI-Agent" 的窗口
+**When** 用户请求查找标题为 "PyCharm - UI-Agent" 的窗口
+**Then** 系统应返回该窗口对象
+**And** 返回的窗口应包含正确的窗口句柄、位置和大小信息
+
+#### 场景：通过部分标题查找窗口
+
+**Given** 系统中存在标题为 "PyCharm - UI-Agent - main.py" 的窗口
+**When** 用户请求查找标题包含 "PyCharm" 的窗口
+**Then** 系统应返回匹配的窗口对象
+
+#### 场景：窗口不存在时返回空结果
+
+**Given** 系统中不存在标题为 "NonExistentApp" 的窗口
+**When** 用户请求查找标题为 "NonExistentApp" 的窗口
+**Then** 系统应返回 None
+**And** 不应抛出异常
+
+---
+
+### 需求：窗口激活
+
+系统**必须**能够将指定窗口置于前台。
+
+#### 场景：激活正常状态的窗口
+
+**Given** PyCharm 窗口存在且处于正常状态（未最小化）
+**When** 用户请求激活 PyCharm 窗口
+**Then** PyCharm 窗口应置于前台
+**And** PyCharm 窗口应获得输入焦点
+**And** 操作应在 2 秒内完成
+
+#### 场景：激活最小化的窗口
+
+**Given** PyCharm 窗口存在但处于最小化状态
+**When** 用户请求激活 PyCharm 窗口
+**Then** PyCharm 窗口应恢复到正常状态
+**And** PyCharm 窗口应置于前台
+**And** PyCharm 窗口应获得输入焦点
+
+#### 场景：激活被遮挡的窗口
+
+**Given** PyCharm 窗口存在但被其他窗口遮挡
+**When** 用户请求激活 PyCharm 窗口
+**Then** PyCharm 窗口应置于前台
+**And** PyCharm 窗口应成为顶层窗口
+
+#### 场景：激活不存在的窗口
+
+**Given** 系统中不存在标题为 "NonExistentApp" 的窗口
+**When** 用户请求激活该窗口
+**Then** 系统应返回失败状态
+**And** 应返回友好的错误信息
+
+#### 场景：存在多个匹配窗口时选择第一个
+
+**Given** 系统中存在多个标题包含 "PyCharm" 的窗口
+**When** 用户请求激活标题包含 "PyCharm" 的窗口
+**Then** 系统应激活第一个匹配的窗口
+**And** 应记录警告日志说明存在多个匹配
+
+---
+
+### 需求：自然语言命令集成
+
+系统**必须**支持通过自然语言命令激活窗口。
+
+#### 场景：通过"激活窗口"命令激活
+
+**Given** 用户输入命令 "激活窗口"
+**And** PyCharm 窗口存在
+**When** 系统解析并执行该命令
+**Then** PyCharm 窗口应被激活
+**And** 返回成功状态
+
+#### 场景：通过"切换到 PyCharm"命令激活
+
+**Given** 用户输入命令 "切换到 PyCharm"
+**And** PyCharm 窗口存在
+**When** 系统解析并执行该命令
+**Then** PyCharm 窗口应被激活
+**And** 返回成功状态
+
+#### 场景：命令解析失败时的处理
+
+**Given** 用户输入命令 "激活 nonexistent"
+**And** 不存在匹配的窗口
+**When** 系统尝试执行该命令
+**Then** 应返回失败状态
+**And** 错误信息应说明窗口未找到
+
+---
+
+### 需求：错误处理与日志
+
+系统**必须**提供完善的错误处理和日志记录。
+
+#### 场景：记录窗口激活操作
+
+**Given** 用户请求激活窗口
+**When** 操作执行
+**Then** 应记录操作开始日志
+**And** 应记录操作结果日志
+
+#### 场景：窗口未找到时的友好提示
+
+**Given** 用户请求激活不存在的窗口 "Xyz"
+**When** 操作执行失败
+**Then** 错误信息应说明窗口未找到
+**And** 可选地列出当前可用窗口列表
+
+#### 场景：权限不足时的错误处理
+
+**Given** 用户请求激活窗口
+**And** 系统权限不足以激活该窗口
+**When** 操作执行失败
+**Then** 应记录错误日志
+**And** 返回说明权限问题的错误信息
+
+---
+
+### 需求：配置化窗口匹配模式
+
+系统**必须**支持通过配置文件定义窗口匹配模式。
+
+#### 场景：使用配置文件中的默认窗口模式
+
+**Given** 配置文件中定义 `default_title_pattern: "PyCharm"`
+**When** 用户请求激活窗口但未指定标题
+**Then** 系统应使用 "PyCharm" 作为默认匹配模式
+
+#### 场景：支持多个匹配模式
+
+**Given** 配置文件中定义多个窗口模式
+**And** 模式包括 ["PyCharm", ".*PyCharm.*", "IntelliJ"]
+**When** 用户请求激活窗口
+**Then** 系统应依次尝试所有模式直到找到匹配
+
+---
+
+### 需求：多 IDE 支持
+
+系统**必须**支持激活多种 IDE 窗口。
+
+#### 场景：激活 VSCode 窗口
+
+**Given** VSCode 窗口存在
+**When** 用户请求激活 VSCode
+**Then** VSCode 窗口应被激活
+
+#### 场景：激活 WebStorm 窗口
+
+**Given** WebStorm 窗口存在
+**When** 用户请求激活 WebStorm
+**Then** WebStorm 窗口应被激活
+

@@ -13,7 +13,9 @@
       "Bash(cat:*)",
       "Bash(ZHIPUAI_API_KEY=\"34eeadd155244053894ffadb2c1999a4.vu8hn2jUQdoGzJ9O\" python:*)",
       "Bash(pytest:*)",
-      "Bash(openspec-cn show:*)"
+      "Bash(openspec-cn show:*)",
+      "Skill(openspec:apply)",
+      "Bash(pip install:*)"
     ]
   }
 }

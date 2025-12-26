@@ -56,12 +56,17 @@ def print_help() -> None:
     print("  help     - 显示此帮助信息")
     print("  exit     - 退出程序")
     print("  quit     - 退出程序")
+    print("  debug    - 启用调试日志")
+    print("  nodebug  - 关闭调试日志")
     print("\n示例命令:")
     print("  打开 main.py")
     print("  保存文件")
     print("  跳转到第 50 行")
     print("  运行当前文件")
     print("  格式化代码")
+    print("\n命令行选项:")
+    print("  --debug, --verbose, -v  - 启用调试日志")
+    print("  --template <文件名>      - 指定模板图片")
     print()
 
 
@@ -71,8 +76,17 @@ def main() -> int:
     Returns:
         退出代码
     """
+    # 解析命令行参数（在初始化日志之前）
+    enable_debug = "--debug" in sys.argv
+    verbose = "--verbose" in sys.argv or "-v" in sys.argv
+
     # 初始化日志
     logger = Logger.get_logger()
+
+    # 如果启用 debug，设置日志级别
+    if enable_debug or verbose:
+        Logger.set_level("DEBUG")
+        print("[调试] Debug 日志已启用")
 
     # 配置文件路径
     config_path = os.environ.get("UI_AGENT_CONFIG", "config/main.yaml")
@@ -96,8 +110,25 @@ def main() -> int:
 
     # 检查是否是单命令模式
     if len(sys.argv) > 1:
-        command = " ".join(sys.argv[1:])
-        result = controller.execute_command(command)
+        # 解析命令和参数
+        args = sys.argv[1:]
+        command_parts = []
+        template_name = None
+
+        i = 0
+        while i < len(args):
+            # 跳过选项参数
+            if args[i] in ("--debug", "--verbose", "-v"):
+                i += 1
+            elif args[i] == "--template" and i + 1 < len(args):
+                template_name = args[i + 1]
+                i += 2
+            else:
+                command_parts.append(args[i])
+                i += 1
+
+        command = " ".join(command_parts)
+        result = controller.execute_command(command, template_name=template_name)
 
         if result.success:
             print(f"\n{result.message}")
@@ -107,7 +138,13 @@ def main() -> int:
         else:
             print(f"\n错误: {result.message}")
             if result.error:
-                print(f"详情: {result.error}")
+                # 处理可能包含特殊字符的错误信息
+                try:
+                    print(f"详情: {result.error}")
+                except UnicodeEncodeError:
+                    # 如果编码失败，移除不可打印字符后再输出
+                    error_clean = ''.join(c for c in str(result.error) if c.isprintable() or c.isspace())
+                    print(f"详情: {error_clean}")
             return 1
 
     # 交互式模式
@@ -131,6 +168,17 @@ def main() -> int:
                 print_help()
                 continue
 
+            # 处理 debug 命令
+            if command.lower() == "debug":
+                Logger.set_level("DEBUG")
+                print("Debug 日志已启用")
+                continue
+
+            if command.lower() == "nodebug":
+                Logger.set_level("INFO")
+                print("Debug 日志已关闭")
+                continue
+
             # 执行命令
             result = controller.execute_command(command)
 
@@ -141,7 +189,13 @@ def main() -> int:
             else:
                 print(f"\n错误: {result.message}")
                 if result.error:
-                    print(f"详情: {result.error}")
+                    # 处理可能包含特殊字符的错误信息
+                    try:
+                        print(f"详情: {result.error}")
+                    except UnicodeEncodeError:
+                        # 如果编码失败，移除不可打印字符后再输出
+                        error_clean = ''.join(c for c in str(result.error) if c.isprintable() or c.isspace())
+                        print(f"详情: {error_clean}")
 
             print()
 

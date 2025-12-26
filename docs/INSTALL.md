@@ -46,8 +46,28 @@ pip install -e .
 
 或手动安装依赖：
 ```bash
-pip install pyautogui keyboard pillow mss pyyaml zhipuai pytest
+pip install pyautogui keyboard pillow mss pyyaml zhipuai pytest pygetwindow
 ```
+
+**窗口管理功能可选依赖**:
+```bash
+# Windows 增强功能（推荐）
+pip install pywin32 psutil
+```
+
+### 依赖说明
+
+| 依赖包 | 用途 | 是否必需 |
+|-------|------|----------|
+| `pygetwindow` | 跨平台窗口管理 | 是 |
+| `pywin32` | Windows API 增强功能 | 否（Windows 推荐） |
+| `psutil` | 进程查找功能 | 否 |
+| `pyautogui` | GUI 自动化 | 是 |
+| `keyboard` | 键盘操作 | 是 |
+| `pillow` | 图像处理 | 是 |
+| `mss` | 屏幕截图 | 是 |
+| `pyyaml` | 配置文件解析 | 是 |
+| `zhipuai` | 智谱 AI SDK | 是 |
 
 ### 4. 获取 API 密钥
 
@@ -173,6 +193,41 @@ pip install -e .
 **A:** 某些操作需要管理员权限。以管理员身份运行终端：
 - 右键点击终端/PowerShell
 - 选择"以管理员身份运行"
+
+### Q: 窗口激活失败
+
+**A:** 如果遇到窗口激活失败的问题，可能是以下原因：
+
+1. **权限不足**：目标应用以管理员权限运行
+   - 解决方案：以管理员身份运行 UI-Agent
+   - 或关闭目标应用后以普通用户身份重新打开
+
+2. **窗口未找到**：窗口标题不匹配
+   - 使用"列出窗口"命令查看可用的窗口标题
+   - 确认目标应用正在运行
+
+3. **多显示器问题**：窗口在其他显示器上
+   - 确保目标显示器可见
+   - 尝试手动将窗口移到主显示器
+
+### Q: pygetwindow 安装失败
+
+**A:** pygetwindow 是窗口管理的核心依赖：
+
+1. 确保使用最新版本的 pip：
+   ```bash
+   python -m pip install --upgrade pip
+   ```
+
+2. 如果 Windows 平台安装失败，尝试：
+   ```bash
+   pip install pygetwindow>=0.0.9
+   ```
+
+3. 验证安装：
+   ```bash
+   python -c "import pygetwindow; print(pygetwindow.__version__)"
+   ```
 
 ## 卸载
 

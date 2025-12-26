@@ -383,3 +383,62 @@ operations:
           conditional_param: submit_action  # 检查此参数是否存在
 
     requires_confirmation: false
+
+  # 模板匹配操作示例
+  - name: click_run_button
+    aliases: [点击运行按钮, run button]
+    intent: template_match
+    description: 点击运行按钮（使用模板匹配）
+
+    # 模板匹配参数
+    template: run_button.png  # 模板图片文件名（相对于 template_dir）
+    confidence: 0.8  # 匹配置信度阈值（可选，默认使用配置文件中的值）
+
+    actions:
+      - type: click
+        target: "0"  # 使用模板匹配返回的第一个元素
+        timeout: 1.0
+
+    requires_confirmation: false
+
+  - name: click_database_button
+    aliases: [点击数据库按钮, database button]
+    intent: template_match
+    description: 点击数据库按钮（使用模板匹配）
+
+    # 模板匹配参数
+    template: database-button.png  # 模板图片文件名（相对于 template_dir）
+    confidence: 0.8
+
+    actions:
+      - type: click
+        target: "0"
+        timeout: 1.0
+
+    requires_confirmation: false
+
+  - name: click_button
+    aliases: [点击按钮, click button]
+    intent: template_match
+    description: 点击按钮（使用模板匹配，通过 --template 参数指定模板）
+
+    # 模板匹配参数（通过命令行 --template 指定）
+    template: null
+    confidence: 0.8
+
+    actions:
+      - type: click
+        target: "0"
+        timeout: 1.0
+
+    requires_confirmation: false
+
+  # 窗口管理操作
+  - name: activate_window
+    aliases: [激活窗口, 切换到 PyCharm, activate window, 切换到, switch to, 切换, 激活, 打开]
+    intent: window_management
+    description: 将指定窗口置于前台（支持窗口标题或进程名，如 WeChatApp.exe）
+
+    actions: []  # 窗口管理操作不需要 UI 动作
+
+    requires_confirmation: false

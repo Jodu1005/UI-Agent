@@ -31,6 +31,18 @@ vision:
   # - false: 仅使用 OCR 进行定位，不调用大模型 API
   enabled: false
 
+template_matching:
+  # 模板图片存储目录（相对于项目根目录）
+  template_dir: templates/
+  # 默认匹配置信度阈值 (0.0-1.0)
+  default_confidence: 0.6
+  # 匹配方法: TM_CCOEFF_NORMED（推荐）、TM_CCORR_NORMED、TM_SQDIFF
+  method: TM_CCOEFF_NORMED
+  # 是否支持多尺度匹配（应对不同 DPI/缩放）
+  enable_multiscale: true
+  # 多尺度匹配的缩放比例
+  scales: [0.8, 0.9, 1.0, 1.1, 1.2]
+
 safety:
   dangerous_operations:
     - delete_file

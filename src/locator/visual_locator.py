@@ -130,7 +130,7 @@ class VisualLocator:
 
         # 如果视觉识别被禁用，直接使用 OCR
         if not self._vision_enabled:
-            print("[定位] 视觉识别已禁用，使用 OCR 定位")
+            print(f"[定位] 视觉识别已禁用，使用 OCR 定位,关键字为{target_filter}")
             if target_filter:
                 return self._locate_with_ocr(screenshot, target_filter)
             # 如果没有目标过滤，尝试全图 OCR 获取所有文本

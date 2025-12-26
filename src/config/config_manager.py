@@ -15,6 +15,7 @@ from .schema import (
     MainConfig,
     OperationConfig,
     PostCheckConfig,
+    TemplateMatchingConfig,
 )
 
 
@@ -87,6 +88,8 @@ class OperationConfigModel(BaseModel):
     post_check: PostCheckConfigModel | None = None
     requires_confirmation: bool = False
     risk_level: str = "low"
+    template: str | None = None
+    confidence: float | None = None
 
     def to_operation_config(self) -> OperationConfig:
         """转换为 OperationConfig。"""
@@ -101,6 +104,8 @@ class OperationConfigModel(BaseModel):
             post_check=self.post_check.to_post_check_config() if self.post_check else None,
             requires_confirmation=self.requires_confirmation,
             risk_level=self.risk_level,
+            template=self.template,
+            confidence=self.confidence,
         )
 
 
@@ -203,6 +208,7 @@ class ConfigManager:
             IDEConfig,
             SafetyConfig,
             SystemConfig,
+            TemplateMatchingConfig,
             VisionConfig,
         )
 
@@ -212,6 +218,7 @@ class ConfigManager:
         automation_data = data.get("automation", {})
         safety_data = data.get("safety", {})
         vision_data = data.get("vision", {})
+        template_matching_data = data.get("template_matching", {})
 
         # 加载 IDE 操作配置
         ide_config_path = ide_data.get("config_path")
@@ -231,6 +238,7 @@ class ConfigManager:
             automation=AutomationConfig(**automation_data),
             safety=SafetyConfig(**safety_data),
             vision=VisionConfig(**vision_data),
+            template_matching=TemplateMatchingConfig(**template_matching_data),
         )
 
     def load_ide_config(self, path: str) -> IDEConfig:

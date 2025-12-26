@@ -6,6 +6,7 @@
 
 - 自然语言命令解析和意图识别
 - 基于 GLM-4V-Flash 的视觉 UI 元素定位
+- **窗口管理功能**：激活、切换窗口，支持多种 IDE
 - 跨平台 GUI 自动化操作执行
 - 可扩展的 IDE 操作配置系统
 - 完善的安全机制和错误恢复
@@ -45,13 +46,15 @@ export ZHIPUAI_API_KEY="your-api-key-here"
 python -m src.main
 
 # 执行单条命令
-python -m src.main "打开 main.py"
+python -m src.main "在 终端 下方的输入框中输入 python --version 并回车"
+python -m src.main "双击 implement-nl-ide-control"
 ```
 
 ## 支持的命令
 
 系统支持以下类型的自然语言命令：
 
+- **窗口管理**：激活窗口、切换到 PyCharm、切换窗口
 - **文件操作**：打开文件、关闭文件、保存文件、新建文件
 - **编辑操作**：重命名符号、提取方法、格式化代码
 - **导航操作**：跳转到行、查找文件、查找符号
@@ -59,6 +62,7 @@ python -m src.main "打开 main.py"
 
 示例：
 ```
+激活窗口
 打开 main.py
 跳转到第 50 行
 重命名当前函数为 foo
@@ -77,6 +81,7 @@ ui-agent/
 │   ├── automation/       # 自动化执行
 │   ├── config/           # 配置管理
 │   ├── infrastructure/   # 基础设施
+│   ├── window/           # 窗口管理
 │   └── models/           # 数据模型
 ├── config/               # 配置文件
 ├── tests/                # 测试

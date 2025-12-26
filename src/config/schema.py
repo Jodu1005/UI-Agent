@@ -46,6 +46,8 @@ class OperationConfig:
         post_check: 后置检查
         requires_confirmation: 是否需要确认
         risk_level: 风险等级
+        template: 模板图片文件名（用于 template_match 意图）
+        confidence: 模板匹配置信度阈值
     """
 
     name: str
@@ -58,6 +60,8 @@ class OperationConfig:
     post_check: PostCheckConfig | None = None
     requires_confirmation: bool = False
     risk_level: str = "low"
+    template: str | None = None
+    confidence: float | None = None
 
 
 @dataclass
@@ -116,6 +120,26 @@ class VisionConfig:
 
 
 @dataclass
+class TemplateMatchingConfig:
+    """模板匹配配置。"""
+
+    # 模板图片存储目录（相对于项目根目录）
+    template_dir: str = "templates/"
+    # 默认匹配置信度阈值 (0.0-1.0)
+    default_confidence: float = 0.8
+    # 匹配方法: TM_CCOEFF_NORMED（推荐）、TM_CCORR_NORMED、TM_SQDIFF
+    method: str = "TM_CCOEFF_NORMED"
+    # 是否支持多尺度匹配（应对不同 DPI/缩放）
+    enable_multiscale: bool = False
+    # 多尺度匹配时的缩放比例列表
+    scales: list[float] = None
+
+    def __post_init__(self):
+        if self.scales is None:
+            self.scales = [0.8, 0.9, 1.0, 1.1, 1.2]
+
+
+@dataclass
 class MainConfig:
     """主配置文件。"""
 
@@ -125,3 +149,4 @@ class MainConfig:
     automation: AutomationConfig
     safety: SafetyConfig
     vision: VisionConfig = None
+    template_matching: TemplateMatchingConfig = None
