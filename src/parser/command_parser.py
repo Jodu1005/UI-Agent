@@ -75,19 +75,42 @@ class CommandParser:
         """
         text_lower = text.lower().strip()
 
+        # 优先检查浏览器自动化命令
+        # 如果命令包含"网页"、"浏览器"、"页面"等关键词，优先匹配浏览器自动化
+        browser_keywords = ["网页", "浏览器", "页面", "browser"]
+        if any(kw in text_lower for kw in browser_keywords):
+            # 查找浏览器自动化相关的操作
+            for op_name in self.config.list_operations():
+                op = self.config.get_operation(op_name)
+                if op and op.intent == "browser_automation":
+                    # 检查别名是否匹配
+                    for alias in op.aliases:
+                        if alias.lower() in text_lower:
+                            return op
+
+        # 收集所有匹配的操作及其匹配的别名长度
+        matches: list[tuple[OperationConfig, int]] = []
+
         # 遍历所有操作
         for op_name in self.config.list_operations():
             op = self.config.get_operation(op_name)
             if not op:
                 continue
 
-            # 检查操作名称和别名
+            # 检查操作名称
             if op.name.lower() in text_lower:
-                return op
+                matches.append((op, len(op.name)))
 
+            # 检查别名
             for alias in op.aliases:
                 if alias.lower() in text_lower:
-                    return op
+                    matches.append((op, len(alias)))
+
+        # 返回别名长度最长的匹配（更具体的匹配优先）
+        if matches:
+            # 按别名长度降序排序，取第一个
+            matches.sort(key=lambda x: x[1], reverse=True)
+            return matches[0][0]
 
         return None
 
@@ -102,6 +125,25 @@ class CommandParser:
             提取的参数字典
         """
         parameters: dict[str, Any] = {}
+
+        # 特殊处理：浏览器自动化命令
+        if operation.intent == "browser_automation":
+            # 对于浏览器自动化命令，提取操作名称后的所有内容作为定位器
+            for alias in operation.aliases + [operation.name]:
+                if alias.lower() in text.lower():
+                    # 获取操作名称后的内容
+                    pattern = rf'{re.escape(alias)}\s+(.+)'
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        # 提取完整的元素描述
+                        target = match.group(1).strip()
+                        # 去除常见的介词
+                        target = re.sub(r'^(中的|名为|叫|target|target:)\s*', '', target)
+                        if target:
+                            parameters["filename"] = target
+                            parameters["locator"] = target
+                            break
+            return parameters
 
         # 提取文件名/目标关键字（优先级从高到低）
         # 1. 引号包裹的内容（最精确）

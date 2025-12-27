@@ -5,6 +5,7 @@
 ## 目录
 
 - [窗口管理](#窗口管理)
+- [浏览器启动](#浏览器启动)
 - [文件操作](#文件操作)
 - [编辑操作](#编辑操作)
 - [导航操作](#导航操作)
@@ -57,6 +58,49 @@
 ```
 
 **说明**: 列出系统中所有可见窗口的标题，便于查找目标窗口名称。
+
+---
+
+## 浏览器启动
+
+### 打开浏览器 / 访问网址
+
+**命令别名**: `打开浏览器`, `访问网址`, `在浏览器中打开`, `浏览器打开`, `open browser`, `访问`, `打开网址`
+
+**参数**:
+- `url` (必需): 要访问的网址
+- `browser` (可选): 浏览器类型（chrome、edge、firefox 等），默认使用系统默认浏览器
+
+**示例**:
+```
+打开浏览器访问 https://www.baidu.com
+访问 https://github.com
+在 Chrome 中打开 https://pypi.org
+在 Edge 中打开 https://www.python.org
+打开 https://www.example.com
+```
+
+**说明**: 打开指定浏览器并访问目标网址。如果未指定浏览器类型，将使用系统默认浏览器。URL 可以省略协议前缀（https://），系统会自动添加。
+
+**支持的浏览器**:
+- **默认浏览器**: 使用系统默认浏览器
+- **Chrome**: Google Chrome
+- **Edge**: Microsoft Edge
+- **Firefox**: Mozilla Firefox
+- **Safari**: macOS 上的 Safari
+- **Opera**: Opera 浏览器
+
+**URL 格式支持**:
+- 完整 URL: `https://www.example.com`
+- 带路径: `https://www.example.com/path/to/page`
+- 带查询参数: `https://www.example.com/search?q=test`
+- 带端口号: `http://localhost:8080`
+- 带片段标识: `https://www.example.com/page#section`
+
+**注意事项**:
+- 如果 URL 不包含协议前缀（http:// 或 https://），系统会自动添加 https://
+- 系统会验证 URL 格式的有效性，无效的 URL 会返回错误提示
+- 如果指定的浏览器未安装，会显示可用浏览器列表
 
 ---
 

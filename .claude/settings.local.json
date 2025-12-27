@@ -15,7 +15,9 @@
       "Bash(pytest:*)",
       "Bash(openspec-cn show:*)",
       "Skill(openspec:apply)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(openspec-cn archive open-browser-with-url:*)",
+      "Skill(openspec:proposal)"
     ]
   }
 }
