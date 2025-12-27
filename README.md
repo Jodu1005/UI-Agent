@@ -7,6 +7,8 @@
 - 自然语言命令解析和意图识别
 - 基于 GLM-4V-Flash 的视觉 UI 元素定位
 - **窗口管理功能**：激活、切换窗口，支持多种 IDE
+- **浏览器启动功能**：打开浏览器并访问指定网址
+- **浏览器自动化功能**：点击、滚动、输入文本、按键操作
 - 跨平台 GUI 自动化操作执行
 - 可扩展的 IDE 操作配置系统
 - 完善的安全机制和错误恢复
@@ -55,6 +57,8 @@ python -m src.main "双击 implement-nl-ide-control"
 系统支持以下类型的自然语言命令：
 
 - **窗口管理**：激活窗口、切换到 PyCharm、切换窗口
+- **浏览器启动**：打开浏览器、访问网址、在浏览器中打开
+- **浏览器自动化**：点击元素、滚动页面、在输入框中输入、等待元素
 - **文件操作**：打开文件、关闭文件、保存文件、新建文件
 - **编辑操作**：重命名符号、提取方法、格式化代码
 - **导航操作**：跳转到行、查找文件、查找符号
@@ -62,13 +66,112 @@ python -m src.main "双击 implement-nl-ide-control"
 
 示例：
 ```
+# 窗口管理
 激活窗口
+切换到 Chrome
+
+# 浏览器启动
+打开浏览器访问 https://www.baidu.com
+在 Chrome 中打开 https://github.com
+
+# 浏览器自动化（需要使用明确的前缀）
+网页点击 百度一下按钮
+页面滚动
+网页输入 搜索框 Python
+等待页面加载完成
+
+# 文件操作
 打开 main.py
 跳转到第 50 行
 重命名当前函数为 foo
+
+# 运行操作
 运行当前文件
 格式化代码
 ```
+
+**注意**：浏览器自动化命令需要使用明确的前缀（"网页"、"页面"、"浏览器"），以区分于普通的 UI 操作。
+
+例如：
+- `网页点击 百度一下按钮` ✓ 正确
+- `点击 百度一下按钮` ✗ 会被识别为普通 UI 操作（使用 OCR 视觉定位）
+
+## 浏览器自动化 API
+
+### 程序化使用
+
+```python
+import asyncio
+from src.browser.automation import BrowserAutomation
+
+async def browser_automation_example():
+    # 创建自动化实例
+    automation = BrowserAutomation()
+
+    try:
+        # 连接到浏览器
+        await automation.connect_to_browser()
+
+        # 导航到页面
+        await automation.get_page("https://www.example.com")
+
+        # 点击元素（使用 CSS 选择器）
+        await automation.click(".submit-button")
+
+        # 点击元素（使用文本）
+        await automation.click("text=提交")
+
+        # 滚动页面
+        await automation.scroll(direction="down")
+        await automation.scroll_to_element(".footer")
+
+        # 输入文本
+        await automation.type_text("#search", "Playwright")
+
+        # 按键操作
+        await automation.press_key("#search", "Enter")
+
+        # 等待元素
+        await automation.wait_for_element(".results")
+
+        # 检查元素状态
+        is_visible = await automation.is_element_visible(".button")
+        text = await automation.get_element_text("h1")
+        href = await automation.get_element_attribute(".link", "href")
+
+    finally:
+        # 关闭浏览器
+        await automation.close()
+
+# 运行示例
+asyncio.run(browser_automation_example())
+```
+
+### 支持的操作
+
+| 操作 | 方法 | 说明 |
+|------|------|------|
+| 点击 | `click(locator, timeout)` | 点击指定元素 |
+| 滚动 | `scroll(direction, distance)` | 向上/向下/左/右滚动 |
+| 滚动到元素 | `scroll_to_element(locator, timeout)` | 滚动到指定元素 |
+| 输入文本 | `type_text(locator, text, clear, timeout)` | 在输入框中输入 |
+| 按键 | `press_key(locator, key, timeout)` | 模拟键盘按键 |
+| 等待元素 | `wait_for_element(locator, visible, timeout)` | 等待元素出现/消失 |
+| 检查可见性 | `is_element_visible(locator, timeout)` | 检查元素是否可见 |
+| 检查启用状态 | `is_element_enabled(locator, timeout)` | 检查元素是否启用 |
+| 获取文本 | `get_element_text(locator, timeout)` | 获取元素文本内容 |
+| 获取属性 | `get_element_attribute(locator, attribute, timeout)` | 获取元素属性值 |
+
+### 元素定位器
+
+支持多种元素定位方式：
+
+| 定位器类型 | 语法示例 | 说明 |
+|-----------|---------|------|
+| CSS 选择器 | `.button`, `#search`, `input[name="q"]` | CSS 选择器语法 |
+| 文本内容 | `text=提交` | 精确匹配文本 |
+| XPath | `xpath=//button[@type='submit']` | XPath 表达式 |
+| 坐标定位 | `coords=100,200` | 页面坐标位置 |
 
 ## 项目结构
 
@@ -82,9 +185,16 @@ ui-agent/
 │   ├── config/           # 配置管理
 │   ├── infrastructure/   # 基础设施
 │   ├── window/           # 窗口管理
+│   ├── browser/          # 浏览器启动与自动化
+│   │   ├── automation.py      # 浏览器自动化控制器
+│   │   ├── browser_launcher.py # 浏览器启动器
+│   │   ├── exceptions.py       # 浏览器相关异常
+│   │   └── locators/          # 元素定位器
 │   └── models/           # 数据模型
 ├── config/               # 配置文件
 ├── tests/                # 测试
+│   ├── unit/             # 单元测试
+│   └── integration/      # 集成测试
 ├── logs/                 # 日志
 └── screenshots/          # 截图
 ```

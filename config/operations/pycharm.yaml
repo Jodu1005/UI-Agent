@@ -442,3 +442,52 @@ operations:
     actions: []  # 窗口管理操作不需要 UI 动作
 
     requires_confirmation: false
+
+  # 浏览器操作
+  - name: open_browser
+    aliases: [打开浏览器, 访问网址, 在浏览器中打开, 浏览器打开, open browser, 访问, 打开网址]
+    intent: browser_launch
+    description: 打开浏览器并访问指定网址
+
+    actions: []  # 浏览器操作不需要 UI 动作
+
+    requires_confirmation: false
+
+  # 浏览器自动化操作
+  # 使用这些命令时，请确保在命令中包含"网页"、"浏览器"或"页面"关键词
+  # 例如："网页点击 百度一下按钮" 或 "页面滚动"
+  - name: browser_click
+    aliases: [网页点击, 浏览器点击, 点击网页, 页面点击, browser click, 网页上点击, 点击页面元素]
+    intent: browser_automation
+    description: 在浏览器中点击指定元素（使用 CSS 选择器或文本）
+
+    actions: []
+
+    requires_confirmation: false
+
+  - name: browser_scroll
+    aliases: [网页滚动, 滚动网页, 浏览器滚动, 页面滚动, scroll page, 滚动页面, 向下滚动网页, 向上滚动网页]
+    intent: browser_automation
+    description: 在浏览器中滚动页面
+
+    actions: []
+
+    requires_confirmation: false
+
+  - name: browser_type
+    aliases: [在网页输入, 浏览器输入, 网页输入, 页面输入, browser type, 在页面输入, 网页上输入]
+    intent: browser_automation
+    description: 在浏览器输入框中输入文本
+
+    actions: []
+
+    requires_confirmation: false
+
+  - name: browser_wait
+    aliases: [等待网页元素, 等待页面元素, browser wait, 等待页面加载, 页面等待加载]
+    intent: browser_automation
+    description: 等待浏览器中的元素出现
+
+    actions: []
+
+    requires_confirmation: false

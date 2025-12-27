@@ -1,5 +1,6 @@
 """IDE 控制主控制器。"""
 
+import re
 import time
 from typing import Any
 
@@ -12,6 +13,13 @@ from src.locator.template_matcher import TemplateMatcher
 from src.locator.visual_locator import VisualLocator
 from src.models.result import ExecutionResult, ExecutionStatus
 from src.parser.command_parser import CommandParser
+from src.browser.browser_launcher import BrowserLauncher
+from src.browser.automation import BrowserAutomation
+from src.browser.exceptions import (
+    BrowserLaunchError,
+    BrowserNotFoundError,
+    InvalidURLError,
+)
 from src.window.exceptions import WindowActivationError, WindowNotFoundError
 from src.window.window_manager import WindowManager
 
@@ -74,6 +82,12 @@ class IDEController:
         # 初始化窗口管理器
         self._window_manager = WindowManager()
 
+        # 初始化浏览器启动器
+        self._browser_launcher = BrowserLauncher()
+
+        # 初始化浏览器自动化控制器（惰性初始化）
+        self._browser_automation: BrowserAutomation | None = None
+
         # 上下文
         self._context: dict[str, Any] = {
             "current_file": None,
@@ -133,7 +147,6 @@ class IDEController:
                     # 命令格式: "切换到微信窗口" -> 提取 "微信"
                     # 命令格式: "激活 WeChat" -> 提取 "WeChat"
                     # 命令格式: "切换到微信" -> 提取 "微信"
-                    import re
                     # 匹配 "切换到xxx窗口" 或 "激活xxx" 或 "切换到xxx"
                     # 注意: 正则表达式顺序很重要，更具体的模式应该放在前面
                     patterns = [
@@ -163,6 +176,57 @@ class IDEController:
                     duration_ms = int((time.time() - start_time) * 1000)
                     result.duration_ms = duration_ms
                     return result
+
+            # 4.5 检查是否是浏览器启动操作
+            if op_config.intent == "browser_launch":
+                if op_config.name == "open_browser":
+                    # 尝试从命令中提取 URL 和浏览器类型
+                    # 命令格式: "打开浏览器访问 https://www.example.com"
+                    # 命令格式: "在 Chrome 中打开 https://www.example.com"
+                    # 命令格式: "访问 https://www.example.com"
+                    url = None
+                    browser = None  # 默认浏览器
+
+                    # 首先尝试从命令中提取 URL
+                    # URL 模式: http:// 或 https:// 开头，或者域名格式
+                    url_pattern = r"(https?://[^\s]+|[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+)"
+                    url_match = re.search(url_pattern, command)
+                    if url_match:
+                        url = url_match.group(1)
+
+                    # 提取浏览器类型
+                    # 命令格式: "在 Chrome 中打开" -> browser = "Chrome"
+                    # 命令格式: "使用 Edge 访问" -> browser = "Edge"
+                    browser_patterns = [
+                        r"在\s*(Chrome|Edge|Firefox|Safari|Opera)\s*中",  # "在 Chrome 中"
+                        r"使用\s*(Chrome|Edge|Firefox|Safari|Opera)\s*",  # "使用 Chrome"
+                        r"用\s*(Chrome|Edge|Firefox|Safari|Opera)\s*",  # "用 Chrome"
+                    ]
+                    for pattern in browser_patterns:
+                        match = re.search(pattern, command, re.IGNORECASE)
+                        if match:
+                            browser = match.group(1)
+                            break
+
+                    # 如果没有找到 URL，返回错误
+                    if not url:
+                        return ExecutionResult(
+                            status=ExecutionStatus.FAILED,
+                            message="未找到有效的 URL",
+                            error="请提供要访问的网址，例如: https://www.example.com",
+                        )
+
+                    result = self.open_browser(url, browser)
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    result.duration_ms = duration_ms
+                    return result
+
+            # 4.6 检查是否是浏览器自动化操作
+            if op_config.intent == "browser_automation":
+                result = self._execute_browser_automation(op_config, parsed.parameters)
+                duration_ms = int((time.time() - start_time) * 1000)
+                result.duration_ms = duration_ms
+                return result
 
             # 5. 执行操作
             result = self._execute_operation(
@@ -524,6 +588,49 @@ class IDEController:
                 error=str(e),
             )
 
+    def open_browser(self, url: str, browser: str | None = None) -> ExecutionResult:
+        """打开浏览器并访问指定网址。
+
+        Args:
+            url: 目标网址
+            browser: 浏览器名称（可选），如 "chrome"、"edge"、"firefox" 等
+                    如果为 None，使用默认浏览器
+
+        Returns:
+            执行结果
+        """
+        try:
+            if browser:
+                success = self._browser_launcher.open_browser(url, browser)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"已使用 {browser} 浏览器打开: {url}",
+                )
+            else:
+                success = self._browser_launcher.open_default_browser(url)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"已使用默认浏览器打开: {url}",
+                )
+        except InvalidURLError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="URL 格式无效",
+                error=str(e),
+            )
+        except BrowserNotFoundError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="浏览器未找到",
+                error=str(e),
+            )
+        except BrowserLaunchError as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="浏览器启动失败",
+                error=str(e),
+            )
+
     def activate_by_process(self, process_name: str) -> ExecutionResult:
         """通过进程名激活窗口。
 
@@ -650,4 +757,128 @@ class IDEController:
                 status=ExecutionStatus.FAILED,
                 message=f"未找到 '{app_name}' 窗口",
                 error="请确保应用正在运行",
+            )
+
+    def _execute_browser_automation(
+        self,
+        op_config: OperationConfig,
+        parameters: dict[str, Any],
+    ) -> ExecutionResult:
+        """执行浏览器自动化操作（基于 OCR + 视觉定位）。
+
+        Args:
+            op_config: 操作配置
+            parameters: 命令参数
+
+        Returns:
+            执行结果
+        """
+        # 惰性初始化浏览器自动化控制器
+        if self._browser_automation is None:
+            self._browser_automation = BrowserAutomation(
+                api_key=self.config.api.zhipuai_api_key if self.config else None,
+                model=self.config.api.model if self.config else "glm-4-flash",
+                config=self.config.system if self.config else None,
+            )
+
+        try:
+            # 根据操作名称执行相应的浏览器操作
+            if op_config.name == "browser_click":
+                # 获取元素文本描述
+                text = parameters.get("locator", parameters.get("filename", ""))
+
+                if not text:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        message="缺少元素描述",
+                        error="请提供要点击的元素文本，例如：网页点击 百度一下按钮",
+                    )
+
+                print(f"[浏览器自动化] 正在查找元素: {text}")
+                self._browser_automation.click(text)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"已点击元素: {text}",
+                )
+
+            elif op_config.name == "browser_scroll":
+                # 从参数中获取滚动方向
+                direction = parameters.get("direction", "down")
+                print(f"[浏览器自动化] 向{direction}滚动页面")
+                self._browser_automation.scroll(direction)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"已{direction}滚动页面",
+                )
+
+            elif op_config.name == "browser_type":
+                # 获取输入框描述和输入文本
+                text = parameters.get("locator", parameters.get("filename", ""))
+                input_text = parameters.get("input_text", "")
+                clear = parameters.get("clear", False)
+
+                if not text:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        message="缺少输入框描述",
+                        error="请提供输入框的描述，例如：网页输入 搜索框 Python",
+                    )
+                if not input_text:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        message="缺少输入文本",
+                        error="请提供要输入的文本内容",
+                    )
+
+                print(f"[浏览器自动化] 在 '{text}' 中输入: {input_text}")
+                self._browser_automation.type_text(text, input_text, clear=clear)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"已在 {text} 输入: {input_text}",
+                )
+
+            elif op_config.name == "browser_wait":
+                text = parameters.get("locator", parameters.get("filename", ""))
+
+                if not text:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        message="缺少元素描述",
+                        error="请提供要等待的元素描述",
+                    )
+
+                print(f"[浏览器自动化] 等待元素出现: {text}")
+                self._browser_automation.wait_for_element(text)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    message=f"已等待元素: {text}",
+                )
+
+            else:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    message=f"未知的浏览器自动化操作: {op_config.name}",
+                )
+
+        except Exception as e:
+            import traceback
+            error_msg = str(e)
+            traceback.print_exc()
+
+            # 检查是否是元素未找到错误
+            if "not found" in error_msg.lower() or "未找到" in error_msg:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    message="浏览器元素未找到",
+                    error=f"无法在屏幕上找到指定的元素。请确保：\n"
+                           f"1. 浏览器已打开正确的页面\n"
+                           f"2. 页面已完全加载\n"
+                           f"3. 元素文本正确且在屏幕可见范围内\n\n"
+                           f"详细错误: {error_msg}",
+                )
+
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                message="浏览器自动化操作失败",
+                error=f"{error_msg}\n\n请确保浏览器已打开正确的页面。",
             )
