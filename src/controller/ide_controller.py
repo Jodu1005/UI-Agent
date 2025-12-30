@@ -99,6 +99,53 @@ class IDEController:
         self._workflow_validator = WorkflowValidator(available_operations)
         self._workflow_executor: WorkflowExecutor | None = None
 
+        # 初始化意图识别和任务编排模块
+        self._intent_recognizer = None
+        self._task_orchestrator = None
+        self._task_executor = None
+        self._template_loader = None
+
+        # 尝试初始化意图识别模块
+        try:
+            from zhipuai import ZhipuAI
+            from src.intent.recognizer import IntentRecognizer
+            from src.templates.loader import TemplateLoader
+            from src.orchestration.executor import TaskExecutor
+            from src.orchestration.orchestrator import TaskOrchestrator
+            from src.orchestration.adapters import BrowserSystemAdapter, IDESystemAdapter
+
+            # 初始化 LLM 客户端
+            llm_client = ZhipuAI(api_key=api_key)
+
+            # 初始化意图识别器
+            intent_definitions_path = "config/intent_definitions.yaml"
+            self._intent_recognizer = IntentRecognizer(
+                intent_definitions_path=intent_definitions_path,
+                llm_client=llm_client,
+                llm_model=self.config.api.model,
+            )
+
+            # 初始化模板加载器
+            self._template_loader = TemplateLoader()
+            self._template_loader.load_from_directory("workflows/templates")
+
+            # 初始化任务执行器
+            self._task_executor = TaskExecutor()
+
+            # 注册系统适配器（IDE 适配器）
+            self._task_executor.register_adapter("ide", IDESystemAdapter(self))
+
+            # 注册浏览器适配器（传入 IDE 控制器实例）
+            self._task_executor.register_adapter("browser", BrowserSystemAdapter(self))
+
+            # 初始化任务编排器
+            self._task_orchestrator = TaskOrchestrator(self._task_executor, self._template_loader)
+
+            print("[初始化] 意图识别和任务编排模块已启用")
+        except Exception as e:
+            print(f"[初始化] 意图识别模块初始化失败: {e}")
+            print("[初始化] 将使用传统命令解析模式")
+
         # 上下文
         self._context: dict[str, Any] = {
             "current_file": None,
@@ -121,7 +168,46 @@ class IDEController:
         start_time = time.time()
 
         try:
-            # 1. 解析命令
+            # 尝试使用意图识别
+            if self._intent_recognizer and self._task_orchestrator:
+                intent_result = self._intent_recognizer.recognize(command)
+
+                if intent_result.has_match:
+                    print(f"[意图识别] 识别到意图: {intent_result.intent.type}")
+                    print(f"[意图识别] 置信度: {intent_result.intent.confidence:.2f}")
+
+                    # 如果置信度低于阈值，请求用户确认
+                    if intent_result.intent.confidence < 0.85:
+                        print(f"[意图识别] 置信度较低，请确认是否继续执行")
+                        # TODO: 添加用户确认逻辑
+
+                    # 显示执行计划
+                    plan = self._task_orchestrator.show_execution_plan(intent_result.intent)
+                    print(f"[执行计划] {plan}")
+
+                    # 执行任务编排
+                    context = self._task_orchestrator.orchestrate(intent_result.intent)
+
+                    # 返回执行结果
+                    summary = context.get_execution_summary()
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    if context.status == "completed":
+                        return ExecutionResult(
+                            status=ExecutionStatus.SUCCESS,
+                            message=f"任务执行成功: {intent_result.intent.type}",
+                            data=summary,
+                            duration_ms=duration_ms,
+                        )
+                    else:
+                        return ExecutionResult(
+                            status=ExecutionStatus.FAILED,
+                            message=f"任务执行失败: {intent_result.intent.type}",
+                            error=summary,
+                            duration_ms=duration_ms,
+                        )
+
+            # 1. 解析命令（传统模式）
             parsed = self.parser.parse(command, self._context)
             if not parsed.validate():
                 return ExecutionResult(

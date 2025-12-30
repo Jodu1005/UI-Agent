@@ -1,0 +1,144 @@
+# 意图定义文件
+# 定义所有可用的意图类型及其参数
+
+intents:
+  # 单系统意图：需求开发（仅 IDE）
+  develop-feature:
+    type: single-system
+    description: 需求开发（仅 IDE），直接使用消息中的需求内容
+    system: ide
+    parameters:
+      requirement_text:
+        type: string
+        description: 需求文本内容
+        required: true
+        examples:
+          - 用户登录需要支持微信扫码
+          - 实现购物车结算功能
+          - 添加商品搜索功能
+
+  # 单系统意图：需求查看（仅浏览器）
+  view-requirement:
+    type: single-system
+    description: 需求查看（仅浏览器），从 URL 提取需求信息
+    system: browser
+    parameters:
+      url:
+        type: string
+        description: 需求链接
+        required: true
+        pattern: "https?://\\S+"
+      requirement_id:
+        type: string
+        description: 需求编号
+        required: false
+        pattern: "[A-Z]+-\\d+"
+
+  # 跨系统组合意图：需求查看并开发
+  requirement-to-development:
+    type: composite
+    description: 需求查看并开发（跨系统），先查看需求再基于需求开发
+    systems:
+      - browser
+      - ide
+    parameters:
+      url:
+        type: string
+        description: 需求链接
+        required: true
+        pattern: "https?://\\S+"
+      requirement_id:
+        type: string
+        description: 需求编号
+        required: false
+        pattern: "[A-Z]+-\\d+"
+
+  # 组合意图：分析需求
+  analyze_requirements:
+    type: composite
+    description: 分析需求（从链接/文件）
+    systems:
+      - browser
+      - ide
+    parameters:
+      source:
+        type: string
+        description: 需求来源（URL 或文件路径）
+        required: true
+
+  # 组合意图：设计方案
+  design_solution:
+    type: composite
+    description: 基于需求设计方案
+    systems:
+      - ide
+    parameters:
+      requirement_text:
+        type: string
+        description: 需求描述
+        required: true
+
+  # 组合意图：实现功能
+  implement_feature:
+    type: composite
+    description: 基于设计或需求实现功能
+    systems:
+      - ide
+    parameters:
+      specification:
+        type: string
+        description: 设计文档或需求描述
+        required: true
+
+  # 单系统意图：部署应用
+  deploy_application:
+    type: single-system
+    description: 部署应用到指定环境
+    system: terminal
+    parameters:
+      environment:
+        type: string
+        description: 目标环境
+        required: true
+        examples:
+          - test
+          - staging
+          - production
+      branch:
+        type: string
+        description: 部署分支
+        required: false
+
+  # 单系统意图：测试代码
+  test_code:
+    type: single-system
+    description: 运行测试并生成报告
+    system: terminal
+    parameters:
+      test_type:
+        type: string
+        description: 测试类型
+        required: false
+        examples:
+          - unit
+          - integration
+          - e2e
+      generate_report:
+        type: boolean
+        description: 是否生成覆盖率报告
+        required: false
+
+  # 单系统意图：代码审查
+  review_code:
+    type: single-system
+    description: 执行代码审查
+    system: ide
+    parameters:
+      scope:
+        type: string
+        description: 审查范围
+        required: false
+        examples:
+          - current_file
+          - staged_changes
+          - all

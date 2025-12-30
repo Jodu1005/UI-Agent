@@ -1,0 +1,28 @@
+# 组合场景模板：需求查看并开发
+name: requirement-to-development
+description: 需求查看并开发（跨系统），先查看需求再基于需求开发
+intent_types:
+  - requirement-to-development
+steps:
+  # 第一步：在浏览器中打开需求页面
+  - system: browser
+    action: open
+    parameters:
+      url: "{{intent.url}}"
+  # 第二步：提取需求信息
+  - system: browser
+    action: extract_content
+    parameters:
+      selector: ".requirement-content"
+    output_to: requirement_data
+  # 第三步：切换到 IDE
+  - system: ide
+    action: switch_window
+    parameters:
+      window: PyCharm
+  # 第四步：调用开发插件，传入需求信息
+  - system: ide
+    action: develop
+    input_from: requirement_data
+    parameters:
+      auto_generate: true

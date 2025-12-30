@@ -1,0 +1,15 @@
+# 单场景模板：需求开发
+name: develop-feature
+description: 需求开发（单系统），直接在 IDE 中开发
+intent_types:
+  - develop-feature
+steps:
+  - system: ide
+    action: switch_window
+    parameters:
+      window: PyCharm
+  - system: ide
+    action: develop
+    parameters:
+      requirement: "{{intent.requirement_text}}"
+      auto_generate: true

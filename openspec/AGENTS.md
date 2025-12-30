@@ -453,4 +453,5 @@ openspec-cn validate --strict # 正确吗？
 openspec-cn archive <change-id> [--yes|-y]  # 标记完成（添加--yes用于自动化）
 ```
 
+
 记住：规范是真相。变更是提案。保持它们同步。

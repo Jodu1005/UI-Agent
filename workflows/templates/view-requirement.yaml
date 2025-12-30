@@ -1,0 +1,15 @@
+# 单场景模板：需求查看
+name: view-requirement
+description: 需求查看（单系统），在浏览器中查看需求
+intent_types:
+  - view-requirement
+steps:
+  - system: browser
+    action: open
+    parameters:
+      url: "{{intent.url}}"
+  - system: browser
+    action: extract_content
+    parameters:
+      selector: ".requirement-content"
+    output_to: requirement_data
